@@ -1,0 +1,11 @@
+# ignore everything
+*
+
+# only allow required paths
+!Cargo.lock
+!Cargo.toml
+!migration/
+!src/
+
+# deny tests
+/src/test

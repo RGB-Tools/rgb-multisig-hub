@@ -1,0 +1,464 @@
+openapi: 3.0.3
+info:
+  title: RGB Multisig Hub
+  description: |-
+    This is the OpenAPI specification for the
+    [RGB Multisig Hub](https://github.com/RGB-Tools/rgb-multisig-hub) APIs
+  license:
+    name: MIT
+    url: https://mit-license.org/
+  version: 0.1.0
+servers:
+  - url: http://localhost:3001
+tags:
+  - name: Read
+    description: APIs to perform read-only operations
+  - name: Write
+    description: APIs to perform write operations
+paths:
+  /bumpaddressindices:
+    post:
+      tags:
+        - Write
+      summary: Bump the address indices
+      description: Bump the address indices for the internal or external
+        addresses by the given count, returning the first of the new batch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BumpAddressIndicesRequest'
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BumpAddressIndicesResponse'
+  /getcurrentaddressindices:
+    get:
+      tags:
+        - Read
+      summary: Get the current address indices
+      description: Get the current address indices for the internal and external addresses
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetCurrentAddressIndicesResponse'
+  /getfile:
+    post:
+      tags:
+        - Read
+      summary: Get a file by its ID
+      description: Get a file by its ID and return the file content as a binary stream
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetFileRequest'
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+  /getlastprocessedopidx:
+    get:
+      tags:
+        - Read
+      summary: Get the last processed operation index
+      description: Get the last processed operation index of the requesting cosigner
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetLastProcessedOpIdxResponse'
+  /getoperationbyidx:
+    post:
+      tags:
+        - Read
+      summary: Get an operation by its index
+      description: Get the details of an operation with the given index or null if it does not exist
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetOperationByIdxRequest'
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationResponse'
+  /info:
+    get:
+      tags:
+        - Read
+      summary: Get the service info
+      description: Get the information about the multisig hub
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InfoResponse'
+  /markoperationprocessed:
+    post:
+      tags:
+        - Write
+      summary: Mark an operation as processed
+      description: Mark an operation as processed by the requesting cosigner.
+        Return an error if the operation does not exist or has already been processed
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkOperationProcessedRequest'
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmptyResponse'
+  /postoperation:
+    post:
+      tags:
+        - Write
+      summary: Post a new operation
+      description: Post a new operation and return its index.
+        Return an error if there's already a pending operation or the cosigner has unprocessed operations
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PostOperationMultipart'
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostOperationResponse'
+  /respondtooperation:
+    post:
+      tags:
+        - Write
+      summary: Respond to an operation
+      description: Respond to the operation with the given index and return its details
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RespondToOperationMultipart'
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationResponse'
+components:
+  schemas:
+    BumpAddressIndicesRequest:
+      type: object
+      required:
+        - count
+        - internal
+      properties:
+        count:
+          type: integer
+          format: uint8
+          description: Number of new addresses
+          minimum: 1
+        internal:
+          type: boolean
+          description: Whether to bump internal or external addresses
+    BumpAddressIndicesResponse:
+      type: object
+      required:
+        - first
+      properties:
+        first:
+          type: integer
+          format: uint32
+          description: The index of the first new address
+    EmptyResponse:
+      type: object
+      properties: {}
+    FileMetadata:
+      type: object
+      required:
+        - file_id
+        - type
+        - posted_by_xpub
+        - size_bytes
+      properties:
+        file_id:
+          type: string
+          description: Unique file identifier
+        type:
+          $ref: '#/components/schemas/FileType'
+        posted_by_xpub:
+          type: string
+          description: Extended public key of the cosigner who posted the file
+        size_bytes:
+          type: integer
+          format: uint64
+          description: File size in bytes
+    FileType:
+      type: integer
+      format: uint8
+      enum: [1, 2, 3, 4, 5, 6]
+      description: |-
+        File type:
+        * 1 - Consignment
+        * 2 - Media
+        * 3 - OperationData
+        * 4 - OperationPsbt
+        * 5 - ResponsePsbt
+        * 6 - Fascia
+    GetCurrentAddressIndicesResponse:
+      type: object
+      required:
+        - internal
+        - external
+      properties:
+        internal:
+          type: integer
+          format: uint32
+          nullable: true
+          description: Current internal address index or null if no address has been used yet
+        external:
+          type: integer
+          format: uint32
+          nullable: true
+          description: Current external address index or null if no address has been used yet
+    GetFileRequest:
+      type: object
+      required:
+        - file_id
+      properties:
+        file_id:
+          type: string
+          description: Unique file identifier
+    GetLastProcessedOpIdxResponse:
+      type: object
+      required:
+        - operation_idx
+      properties:
+        operation_idx:
+          type: integer
+          format: int32
+          description: Last processed operation index
+    GetOperationByIdxRequest:
+      type: object
+      required:
+        - operation_idx
+      properties:
+        operation_idx:
+          type: integer
+          format: int32
+          description: Operation index to retrieve
+    InfoResponse:
+      type: object
+      required:
+        - min_rgb_lib_version
+        - max_rgb_lib_version
+        - rgb_lib_version
+      properties:
+        min_rgb_lib_version:
+          type: string
+          description: Minimum supported rgb-lib version
+        max_rgb_lib_version:
+          type: string
+          description: Maximum supported rgb-lib version
+        rgb_lib_version:
+          type: string
+          description: Current rgb-lib version
+        last_operation_idx:
+          type: integer
+          format: int32
+          nullable: true
+          description: Index of the last operation, or null if no operations exist
+        user_role:
+          $ref: '#/components/schemas/UserRole'
+    MarkOperationProcessedRequest:
+      type: object
+      required:
+        - operation_idx
+      properties:
+        operation_idx:
+          type: integer
+          format: int32
+          description: Operation index to mark as processed
+    OperationResponse:
+      type: object
+      required:
+        - operation_idx
+        - initiator_xpub
+        - operation_type
+        - status
+        - acked_by
+        - nacked_by
+        - files
+      properties:
+        operation_idx:
+          type: integer
+          format: int32
+          description: Operation index
+        initiator_xpub:
+          type: string
+          description: Extended public key of the initiator
+        created_at:
+          type: integer
+          format: int64
+          description: Unix timestamp when the operation was created
+        operation_type:
+          $ref: '#/components/schemas/OperationType'
+        status:
+          $ref: '#/components/schemas/OperationStatus'
+        acked_by:
+          type: array
+          items:
+            type: string
+          description: List of cosigner xPubs that have ACKed the operation
+        nacked_by:
+          type: array
+          items:
+            type: string
+          description: List of cosigner xPubs that have NACKed the operation
+        threshold:
+          type: integer
+          format: uint8
+          nullable: true
+          description: Threshold required for the operation
+        my_response:
+          type: boolean
+          nullable: true
+          description: The requesting cosigner's response
+            (true for ack, false for nack, null for not responded)
+        processed_at:
+          type: integer
+          format: int64
+          nullable: true
+          description: Unix timestamp when the operation was processed
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileMetadata'
+          description: Files associated with the operation
+    OperationStatus:
+      type: integer
+      format: uint8
+      enum: [1, 2, 3]
+      description: |-
+        Operation status:
+        * 1 - Pending
+        * 2 - Approved
+        * 3 - Discarded
+    OperationType:
+      type: integer
+      format: uint8
+      enum: [1, 2, 3, 4, 5, 6, 7]
+      description: |-
+        Operation type:
+        * 1 - CreateUtxos
+        * 2 - Issuance
+        * 3 - SendRgb
+        * 4 - SendBtc
+        * 5 - Inflation
+        * 6 - BlindReceive
+        * 7 - WitnessReceive
+    PostOperationMultipart:
+      type: object
+      required:
+        - operation_type
+      properties:
+        operation_type:
+          type: string
+          format: binary
+          description: Single byte representing the operation type (1-7)
+        file_psbt:
+          type: string
+          format: binary
+          description: Optional PSBT file
+        file_media:
+          type: string
+          format: binary
+          description: Optional media file
+        file_operation_data:
+          type: string
+          format: binary
+          description: Optional operation data file
+        file_consignment:
+          type: string
+          format: binary
+          description: Optional consignment files, multiple can be provided by repeating this field
+    PostOperationResponse:
+      type: object
+      required:
+        - operation_idx
+      properties:
+        operation_idx:
+          type: integer
+          format: int32
+          description: Index of the newly created operation
+    RespondToOperationRequest:
+      type: object
+      required:
+        - operation_idx
+        - ack
+      properties:
+        operation_idx:
+          type: integer
+          format: int32
+          description: Operation index to respond to
+        ack:
+          type: boolean
+          description: Set to true to acknowledge (approve), false to reject
+    RespondToOperationMultipart:
+      type: object
+      required:
+        - request
+      properties:
+        request:
+          type: string
+          format: binary
+          description: JSON string containing RespondToOperationRequest
+        file_psbt:
+          type: string
+          format: binary
+          description: Required if ack is true - signed PSBT file
+    UserRole:
+      description: The role of the user calling the API
+      oneOf:
+        - type: object
+          required: [Cosigner]
+          properties:
+            Cosigner:
+              type: string
+              description: Extended public key of the cosigner
+          additionalProperties: false
+        - type: object
+          required: [WatchOnly]
+          properties:
+            WatchOnly:
+              type: "null"
+          additionalProperties: false
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Biscuit
+security:
+  - bearerAuth: []
