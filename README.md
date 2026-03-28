@@ -244,6 +244,7 @@ The node currently exposes the following APIs:
 - `/markoperationprocessed` (POST)
 - `/postoperation` (POST)
 - `/respondtooperation` (POST)
+- `/transferstatus` (POST)
 
 See the [OpenAPI specification] for details.
 

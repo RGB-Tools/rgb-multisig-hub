@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: RGB Multisig Hub
   description: |-
@@ -167,6 +167,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OperationResponse'
+  /transferstatus:
+    post:
+      tags:
+        - Write
+      summary: Get or set batch transfer acceptance status
+      description: |-
+        Without `accept`, returns the registered acceptance for the given batch
+        transfer index, or null if none. With `accept`, only a cosigner may
+        record acceptance (`true`) or rejection (`false`) for their key;
+        watch-only tokens receive 403 on this path.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferStatusRequest'
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferStatusResponse'
 components:
   schemas:
     BumpAddressIndicesRequest:
@@ -439,6 +461,44 @@ components:
           type: string
           format: binary
           description: Required if ack is true - signed PSBT file
+    TransferStatusInfo:
+      type: object
+      required:
+        - cosigner_xpub
+        - accepted
+        - registered_at
+      properties:
+        cosigner_xpub:
+          type: string
+          description: Extended public key of the cosigner who registered the status
+        accepted:
+          type: boolean
+          description: Whether the transfer was accepted
+        registered_at:
+          type: integer
+          format: int64
+          description: Unix timestamp when the status was registered
+    TransferStatusRequest:
+      type: object
+      required:
+        - batch_transfer_idx
+      properties:
+        batch_transfer_idx:
+          type: integer
+          format: int32
+          example: 1
+          description: Batch transfer index
+        accept:
+          type: boolean
+          description: Omit to read status; set to true/false to record acceptance (cosigner only)
+    TransferStatusResponse:
+      type: object
+      properties:
+        status:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/TransferStatusInfo'
+          description: Present after a successful write, or when a status exists for the batch; null if absent
     UserRole:
       description: The role of the user calling the API
       oneOf:
