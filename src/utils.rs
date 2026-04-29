@@ -77,7 +77,9 @@ pub(crate) fn get_threshold_for_operation(
 ) -> Option<u8> {
     match op_type {
         OperationType::CreateUtxos | OperationType::SendBtc => Some(threshold_vanilla),
-        OperationType::SendRgb | OperationType::Inflation => Some(threshold_colored),
+        OperationType::SendRgb | OperationType::Inflation | OperationType::Burn => {
+            Some(threshold_colored)
+        }
         OperationType::Issuance | OperationType::BlindReceive | OperationType::WitnessReceive => {
             None
         }

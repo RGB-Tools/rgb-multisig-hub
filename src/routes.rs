@@ -255,6 +255,8 @@ pub(crate) enum OperationType {
     BlindReceive = 6,
     #[sea_orm(num_value = 7)]
     WitnessReceive = 7,
+    #[sea_orm(num_value = 8)]
+    Burn = 8,
 }
 
 impl TryFrom<u8> for OperationType {
@@ -269,6 +271,7 @@ impl TryFrom<u8> for OperationType {
             5 => Ok(OperationType::Inflation),
             6 => Ok(OperationType::BlindReceive),
             7 => Ok(OperationType::WitnessReceive),
+            8 => Ok(OperationType::Burn),
             _ => Err(APIError::InvalidOperationType(value)),
         }
     }
@@ -948,7 +951,11 @@ mod tests {
         ));
         assert!(matches!(
             OperationType::try_from(8),
-            Err(APIError::InvalidOperationType(8))
+            Ok(OperationType::Burn)
+        ));
+        assert!(matches!(
+            OperationType::try_from(9),
+            Err(APIError::InvalidOperationType(9))
         ));
     }
 }
