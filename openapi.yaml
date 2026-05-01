@@ -7,7 +7,7 @@ info:
   license:
     name: MIT
     url: https://mit-license.org/
-  version: 0.1.0
+  version: 0.1.1
 servers:
   - url: http://localhost:3001
 tags:
