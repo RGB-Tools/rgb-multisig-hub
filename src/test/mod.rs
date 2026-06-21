@@ -18,7 +18,8 @@ use crate::routes::{
     BumpAddressIndicesRequest, BumpAddressIndicesResponse, EmptyResponse, FileType,
     GetCurrentAddressIndicesResponse, GetFileRequest, GetLastProcessedOpIdxResponse,
     GetOperationByIdxRequest, InfoResponse, MarkOperationProcessedRequest, OperationResponse,
-    OperationStatus, OperationType, PostOperationResponse, RespondToOperationRequest, UserRole,
+    OperationStatus, OperationType, PostOperationResponse, RespondToOperationRequest,
+    TransferStatusRequest, TransferStatusResponse, UserRole,
 };
 use crate::startup::{FILES_DIR, MAX_RGB_LIB_VERSION, MIN_RGB_LIB_VERSION};
 
@@ -458,6 +459,40 @@ async fn respond_to_operation(
     }
 }
 
+async fn transfer_status(
+    ctx: &TestContext,
+    batch_transfer_idx: i32,
+    accept: Option<bool>,
+    cosigner_idx: Option<i32>,
+) -> TransferStatusResponse {
+    let req = TransferStatusRequest {
+        batch_transfer_idx,
+        accept,
+    };
+    let token = match cosigner_idx {
+        Some(cosigner_idx) => ctx.get_cosigner_token(cosigner_idx),
+        None => ctx.watch_only_token.clone(),
+    };
+    let res = reqwest::Client::new()
+        .post(format!("http://{}/transferstatus", ctx.node_address))
+        .bearer_auth(token)
+        .json(&req)
+        .send()
+        .await
+        .unwrap();
+    let res = check_response_is_ok(res)
+        .await
+        .json::<APIResponse<TransferStatusResponse>>()
+        .await
+        .unwrap();
+    match res {
+        APIResponse::Success(res) => res,
+        APIResponse::Error(error) => {
+            panic!("failed to handle transfer status: {error:?}");
+        }
+    }
+}
+
 // common test checks
 
 #[derive(Clone, Debug)]
@@ -825,3 +860,4 @@ mod info;
 mod mark_operation_processed;
 mod post_operation;
 mod respond_to_operation;
+mod transfer_status;
