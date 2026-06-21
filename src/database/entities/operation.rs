@@ -20,6 +20,7 @@ pub struct Model {
     pub status: OperationStatus,
     pub created_at: i64,
     pub initiator_idx: i32,
+    pub seed: Option<Vec<u8>>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
@@ -29,6 +30,7 @@ pub enum Column {
     Status,
     CreatedAt,
     InitiatorIdx,
+    Seed,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
@@ -59,6 +61,7 @@ impl ColumnTrait for Column {
             Self::Status => ColumnType::SmallInteger.def(),
             Self::CreatedAt => ColumnType::BigInteger.def(),
             Self::InitiatorIdx => ColumnType::Integer.def(),
+            Self::Seed => ColumnType::Binary(32).def().null(),
         }
     }
 }

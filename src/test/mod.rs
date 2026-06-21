@@ -17,9 +17,10 @@ use tracing_test::traced_test;
 use crate::routes::{
     BumpAddressIndicesRequest, BumpAddressIndicesResponse, EmptyResponse, FileType,
     GetCurrentAddressIndicesResponse, GetFileRequest, GetLastProcessedOpIdxResponse,
-    GetOperationByIdxRequest, InfoResponse, MarkOperationProcessedRequest, OperationResponse,
-    OperationStatus, OperationType, PostOperationResponse, RespondToOperationRequest,
-    TransferStatusRequest, TransferStatusResponse, UserRole,
+    GetOperationByIdxRequest, InfoResponse, MarkOperationProcessedRequest,
+    OPERATION_TYPES_THAT_REQUIRE_SEED, OperationResponse, OperationStatus, OperationType,
+    PostOperationResponse, RespondToOperationRequest, TransferStatusRequest,
+    TransferStatusResponse, UserRole,
 };
 use crate::startup::{FILES_DIR, MAX_RGB_LIB_VERSION, MIN_RGB_LIB_VERSION};
 
@@ -27,6 +28,8 @@ use super::*;
 
 const JSON: &str = "application/json";
 const OCTET_STREAM: &str = "application/octet-stream";
+const TEST_OPERATION_SEED_HEX: &str =
+    "0707070707070707070707070707070707070707070707070707070707070707";
 
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -393,9 +396,12 @@ async fn mark_operation_processed(ctx: &TestContext, operation_idx: i32, cosigne
 async fn post_operation(ctx: &TestContext, operation_type: OperationType) -> PostOperationResponse {
     let operation_type_part = multipart::Part::bytes((operation_type as u8).to_le_bytes().to_vec());
     let psbt_part = multipart::Part::bytes(b"psbt".to_vec());
-    let form = multipart::Form::new()
+    let mut form = multipart::Form::new()
         .part("operation_type", operation_type_part)
         .part("file_psbt", psbt_part);
+    if OPERATION_TYPES_THAT_REQUIRE_SEED.contains(&operation_type) {
+        form = form.part("seed", multipart::Part::text(TEST_OPERATION_SEED_HEX));
+    }
     post_operation_with_multipart_form(ctx, form, 0).await
 }
 

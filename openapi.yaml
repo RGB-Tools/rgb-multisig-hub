@@ -341,6 +341,13 @@ components:
         initiator_xpub:
           type: string
           description: Extended public key of the initiator
+        seed:
+          type: string
+          minLength: 64
+          maxLength: 64
+          pattern: '^[0-9a-fA-F]{64}$'
+          nullable: true
+          description: 32-byte Ed25519 operation secret seed encoded as hex, if the operation encrypts/decrypts data posted/retrieved from the proxy server
         created_at:
           type: integer
           format: int64
@@ -411,6 +418,12 @@ components:
           type: string
           format: binary
           description: Single byte representing the operation type (1-7)
+        seed:
+          type: string
+          minLength: 64
+          maxLength: 64
+          pattern: '^[0-9a-fA-F]{64}$'
+          description: Required for operations that encrypt/decrypt data posted/retrieved from the proxy server
         file_psbt:
           type: string
           format: binary

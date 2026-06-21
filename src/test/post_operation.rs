@@ -19,6 +19,7 @@ async fn success() {
     let consignment_part_2 = multipart::Part::bytes(b"consignment_data".to_vec());
     let form = multipart::Form::new()
         .part("operation_type", operation_type_part)
+        .part("seed", multipart::Part::text(TEST_OPERATION_SEED_HEX))
         .part("file_psbt", psbt_part)
         .part("file_consignment", consignment_part_1)
         .part("file_consignment", consignment_part_2);
@@ -33,6 +34,7 @@ async fn success() {
     assert_eq!(res.operation_idx, operation_idx);
     assert_eq!(res.operation_type, OperationType::SendRgb);
     assert_eq!(res.initiator_xpub, "xpub0");
+    assert_eq!(res.seed.as_deref(), Some(TEST_OPERATION_SEED_HEX));
     assert!(res.created_at >= before_post && res.created_at <= after_post);
     assert_eq!(res.status, OperationStatus::Pending);
     assert!(!res.files.is_empty());
@@ -80,6 +82,7 @@ async fn success() {
     assert_eq!(res.operation_idx, operation_idx);
     assert_eq!(res.operation_type, OperationType::Issuance);
     assert_eq!(res.initiator_xpub, "xpub0");
+    assert_eq!(res.seed, None);
     assert_eq!(res.status, OperationStatus::Approved);
     assert_eq!(res.files.len(), 1);
     assert_eq!(res.files[0].r#type, FileType::Consignment);
@@ -131,6 +134,9 @@ async fn success() {
         let ctx = setup_daemon(&app_dir).await;
         let operation_type_part = multipart::Part::bytes((op_type as u8).to_le_bytes().to_vec());
         let mut form = multipart::Form::new().part("operation_type", operation_type_part);
+        if OPERATION_TYPES_THAT_REQUIRE_SEED.contains(&op_type) {
+            form = form.part("seed", multipart::Part::text(TEST_OPERATION_SEED_HEX));
+        }
         for file_type in &file_types {
             let file_part = multipart::Part::bytes(format!("{}_content", file_type).into_bytes());
             form = form.part(*file_type, file_part);
@@ -144,6 +150,14 @@ async fn success() {
             .unwrap();
         assert_eq!(res.operation_idx, operation_idx);
         assert_eq!(res.operation_type, op_type);
+        assert_eq!(
+            res.seed.as_deref(),
+            if OPERATION_TYPES_THAT_REQUIRE_SEED.contains(&op_type) {
+                Some(TEST_OPERATION_SEED_HEX)
+            } else {
+                None
+            }
+        );
         assert_eq!(
             res.status,
             if is_auto_approved {
@@ -306,6 +320,145 @@ async fn fail() {
     )
     .await;
 
+    // seed not provided
+    let operation_type_part =
+        multipart::Part::bytes((OperationType::SendRgb as u8).to_le_bytes().to_vec());
+    let psbt_part = multipart::Part::bytes(b"psbt".to_vec());
+    let form = multipart::Form::new()
+        .part("operation_type", operation_type_part)
+        .part("file_psbt", psbt_part);
+    let res = reqwest::Client::new()
+        .post(format!("http://{}/{}", ctx.node_address, PATH))
+        .bearer_auth(ctx.get_cosigner_token(0))
+        .multipart(form)
+        .send()
+        .await
+        .unwrap();
+    check_response_is_nok(
+        res,
+        reqwest::StatusCode::BAD_REQUEST,
+        "seed not provided",
+        "InvalidRequest",
+    )
+    .await;
+
+    // invalid seed length
+    let operation_type_part =
+        multipart::Part::bytes((OperationType::SendRgb as u8).to_le_bytes().to_vec());
+    let seed_part = multipart::Part::text("00".repeat(31));
+    let psbt_part = multipart::Part::bytes(b"psbt".to_vec());
+    let form = multipart::Form::new()
+        .part("operation_type", operation_type_part)
+        .part("seed", seed_part)
+        .part("file_psbt", psbt_part);
+    let res = reqwest::Client::new()
+        .post(format!("http://{}/{}", ctx.node_address, PATH))
+        .bearer_auth(ctx.get_cosigner_token(0))
+        .multipart(form)
+        .send()
+        .await
+        .unwrap();
+    check_response_is_nok(
+        res,
+        reqwest::StatusCode::BAD_REQUEST,
+        "seed must be 64 hex chars",
+        "InvalidRequest",
+    )
+    .await;
+
+    // invalid seed hex
+    let operation_type_part =
+        multipart::Part::bytes((OperationType::SendRgb as u8).to_le_bytes().to_vec());
+    let seed_part = multipart::Part::text("zz".repeat(32));
+    let psbt_part = multipart::Part::bytes(b"psbt".to_vec());
+    let form = multipart::Form::new()
+        .part("operation_type", operation_type_part)
+        .part("seed", seed_part)
+        .part("file_psbt", psbt_part);
+    let res = reqwest::Client::new()
+        .post(format!("http://{}/{}", ctx.node_address, PATH))
+        .bearer_auth(ctx.get_cosigner_token(0))
+        .multipart(form)
+        .send()
+        .await
+        .unwrap();
+    check_response_is_nok(
+        res,
+        reqwest::StatusCode::BAD_REQUEST,
+        "seed must be valid hex",
+        "InvalidRequest",
+    )
+    .await;
+
+    // failed to read seed field
+    let boundary = "BOUNDARY123";
+    let mut body_bytes = Vec::new();
+    body_bytes.extend_from_slice(
+        format!(
+            "--{boundary}\r\n\
+             Content-Disposition: form-data; name=\"operation_type\"\r\n\
+             \r\n"
+        )
+        .as_bytes(),
+    );
+    body_bytes.push(OperationType::SendRgb as u8);
+    body_bytes.extend_from_slice(
+        format!(
+            "\r\n--{boundary}\r\n\
+             Content-Disposition: form-data; name=\"seed\"\r\n\
+             \r\n"
+        )
+        .as_bytes(),
+    );
+    let chunks = vec![
+        Ok::<Bytes, std::io::Error>(Bytes::from(body_bytes)),
+        Ok(Bytes::from_static(b"some bytes but not complete...")),
+        // stream ends here => server hits EOF while reading seed text()
+    ];
+    let body = Body::wrap_stream(stream::iter(chunks));
+    let res = reqwest::Client::new()
+        .post(format!("http://{}/{}", ctx.node_address, PATH))
+        .bearer_auth(ctx.get_cosigner_token(0))
+        .header(
+            header::CONTENT_TYPE,
+            format!("multipart/form-data; boundary={boundary}"),
+        )
+        .body(body)
+        .send()
+        .await
+        .unwrap();
+    check_response_is_nok(
+        res,
+        reqwest::StatusCode::BAD_REQUEST,
+        "failed to read field",
+        "InvalidRequest",
+    )
+    .await;
+
+    // seed provided for operation type that doesn't use it
+    let operation_type_part =
+        multipart::Part::bytes((OperationType::Issuance as u8).to_le_bytes().to_vec());
+    let seed_part = multipart::Part::text(TEST_OPERATION_SEED_HEX);
+    let consignment_part = multipart::Part::bytes(b"consignment".to_vec());
+    let form = multipart::Form::new()
+        .part("operation_type", operation_type_part)
+        .part("seed", seed_part)
+        .part("file_consignment", consignment_part);
+    let res = reqwest::Client::new()
+        .post(format!("http://{}/{}", ctx.node_address, PATH))
+        .bearer_auth(ctx.get_cosigner_token(0))
+        .multipart(form)
+        .send()
+        .await
+        .unwrap();
+    check_response_is_nok(
+        res,
+        reqwest::StatusCode::BAD_REQUEST,
+        "seed not allowed for operation type",
+        "InvalidRequest",
+    )
+    .await;
+
     // cannot post operation while there's already a pending one
     // - first operation succeeds
     let operation_type_part =
@@ -313,6 +466,7 @@ async fn fail() {
     let psbt_part = multipart::Part::bytes(b"psbt".to_vec());
     let form = multipart::Form::new()
         .part("operation_type", operation_type_part)
+        .part("seed", multipart::Part::text(TEST_OPERATION_SEED_HEX))
         .part("file_psbt", psbt_part);
     let res = reqwest::Client::new()
         .post(format!("http://{}/{}", ctx.node_address, PATH))
@@ -328,6 +482,7 @@ async fn fail() {
     let psbt_part = multipart::Part::bytes(b"psbt".to_vec());
     let form = multipart::Form::new()
         .part("operation_type", operation_type_part)
+        .part("seed", multipart::Part::text(TEST_OPERATION_SEED_HEX))
         .part("file_psbt", psbt_part);
     let res = reqwest::Client::new()
         .post(format!("http://{}/{}", ctx.node_address, PATH))
@@ -368,6 +523,7 @@ async fn fail() {
     let psbt_part = multipart::Part::bytes(b"psbt".to_vec());
     let form = multipart::Form::new()
         .part("operation_type", operation_type_part)
+        .part("seed", multipart::Part::text(TEST_OPERATION_SEED_HEX))
         .part("file_psbt", psbt_part);
     let res = reqwest::Client::new()
         .post(format!("http://{}/{}", ctx.node_address, PATH))

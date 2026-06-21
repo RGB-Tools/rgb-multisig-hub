@@ -309,6 +309,7 @@ async fn fail() {
     let psbt_part = multipart::Part::bytes(b"psbt2".to_vec());
     let form = multipart::Form::new()
         .part("operation_type", operation_type_part)
+        .part("seed", multipart::Part::text(TEST_OPERATION_SEED_HEX))
         .part("file_psbt", psbt_part);
     let res = reqwest::Client::new()
         .post(format!("http://{}/postoperation", ctx2.node_address))

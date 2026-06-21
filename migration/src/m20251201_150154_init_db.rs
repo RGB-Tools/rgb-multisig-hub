@@ -51,6 +51,7 @@ impl MigrationTrait for Migration {
                     .col(tiny_unsigned(Operation::Status))
                     .col(big_unsigned(Operation::CreatedAt))
                     .col(integer(Operation::InitiatorIdx))
+                    .col(binary_len_null(Operation::Seed, 32))
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk-operation-initiatoridx")
@@ -274,6 +275,7 @@ enum Operation {
     Status,
     CreatedAt,
     InitiatorIdx,
+    Seed,
 }
 
 #[derive(DeriveIden)]

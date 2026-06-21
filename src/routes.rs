@@ -28,6 +28,12 @@ pub(crate) const AUTO_APPROVED_OPS: [OperationType; 3] = [
     OperationType::WitnessReceive,
 ];
 
+pub(crate) const OPERATION_TYPES_THAT_REQUIRE_SEED: [OperationType; 3] = [
+    OperationType::SendRgb,
+    OperationType::BlindReceive,
+    OperationType::WitnessReceive,
+];
+
 #[derive(Deserialize, Serialize)]
 pub(crate) struct BumpAddressIndicesRequest {
     pub(crate) count: u8,
@@ -106,6 +112,7 @@ pub(crate) struct MarkOperationProcessedRequest {
 pub(crate) struct OperationResponse {
     pub(crate) operation_idx: i32,
     pub(crate) initiator_xpub: String,
+    pub(crate) seed: Option<String>,
     pub(crate) created_at: i64,
     pub(crate) operation_type: OperationType,
     pub(crate) status: OperationStatus,
@@ -293,6 +300,7 @@ impl AppState {
         Ok(Some(OperationResponse {
             operation_idx: op.idx,
             initiator_xpub: initiator.xpub,
+            seed: op.seed.map(hex::encode),
             created_at: op.created_at,
             operation_type: op.r#type,
             status: op.status,
@@ -528,6 +536,7 @@ pub(crate) async fn post_operation(
 
         // parse multipart form
         let mut operation_type = None;
+        let mut seed = None;
         let mut files = Vec::new();
         let mut psbt_file = None;
         while let Some(mut field) = multipart
@@ -543,6 +552,17 @@ pub(crate) async fn post_operation(
                     })?;
                     let op_type = OperationType::try_from(op_type[0])?;
                     operation_type = Some(op_type);
+                }
+                "seed" => {
+                    let seed_hex = field.text().await.map_err(|e| {
+                        APIError::InvalidRequest(format!("failed to read field: {e}"))
+                    })?;
+                    if seed_hex.len() != 64 {
+                        return Err(APIError::InvalidRequest(s!("seed must be 64 hex chars")));
+                    }
+                    let seed_bytes = hex::decode(seed_hex)
+                        .map_err(|_| APIError::InvalidRequest(s!("seed must be valid hex")))?;
+                    seed = Some(seed_bytes);
                 }
                 field_name if field_name.starts_with("file_") => {
                     let file_type = match &field_name[5..] {
@@ -600,6 +620,16 @@ pub(crate) async fn post_operation(
         }
         let operation_type =
             operation_type.ok_or(APIError::InvalidRequest(s!("operation type not provided")))?;
+        let operation_requires_seed = OPERATION_TYPES_THAT_REQUIRE_SEED.contains(&operation_type);
+        match (operation_requires_seed, seed.as_ref()) {
+            (true, None) => return Err(APIError::InvalidRequest(s!("seed not provided"))),
+            (false, Some(_)) => {
+                return Err(APIError::InvalidRequest(s!(
+                    "seed not allowed for operation type"
+                )));
+            }
+            _ => {}
+        }
 
         // get current timestamp
         let now = now().unix_timestamp();
@@ -617,6 +647,7 @@ pub(crate) async fn post_operation(
             r#type: ActiveValue::Set(operation_type),
             status: ActiveValue::Set(initial_status),
             initiator_idx: ActiveValue::Set(cosigner_idx),
+            seed: ActiveValue::Set(seed),
             created_at: ActiveValue::Set(now),
             ..Default::default()
         };
