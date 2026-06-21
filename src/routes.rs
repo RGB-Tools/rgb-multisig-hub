@@ -28,6 +28,180 @@ pub(crate) const AUTO_APPROVED_OPS: [OperationType; 3] = [
     OperationType::WitnessReceive,
 ];
 
+#[derive(Deserialize, Serialize)]
+pub(crate) struct BumpAddressIndicesRequest {
+    pub(crate) count: u8,
+    pub(crate) internal: bool,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(crate) struct BumpAddressIndicesResponse {
+    pub(crate) first: u32,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(crate) struct EmptyResponse {}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct FileMetadata {
+    pub(crate) file_id: String,
+    pub(crate) r#type: FileType,
+    pub(crate) posted_by_xpub: String,
+    pub(crate) size_bytes: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Deserialize, Serialize)]
+#[sea_orm(rs_type = "u8", db_type = "TinyUnsigned")]
+pub(crate) enum FileType {
+    #[sea_orm(num_value = 1)]
+    Consignment = 1,
+    #[sea_orm(num_value = 2)]
+    Media = 2,
+    #[sea_orm(num_value = 3)]
+    OperationData = 3,
+    #[sea_orm(num_value = 4)]
+    OperationPsbt = 4,
+    #[sea_orm(num_value = 5)]
+    ResponsePsbt = 5,
+    #[sea_orm(num_value = 6)]
+    Fascia = 6,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(crate) struct GetCurrentAddressIndicesResponse {
+    pub(crate) internal: Option<u32>,
+    pub(crate) external: Option<u32>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(crate) struct GetFileRequest {
+    pub(crate) file_id: String,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(crate) struct GetLastProcessedOpIdxResponse {
+    pub(crate) operation_idx: i32,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(crate) struct GetOperationByIdxRequest {
+    pub(crate) operation_idx: i32,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(crate) struct InfoResponse {
+    pub(crate) min_rgb_lib_version: String,
+    pub(crate) max_rgb_lib_version: String,
+    pub(crate) rgb_lib_version: String,
+    pub(crate) last_operation_idx: Option<i32>,
+    pub(crate) user_role: UserRole,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(crate) struct MarkOperationProcessedRequest {
+    pub(crate) operation_idx: i32,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct OperationResponse {
+    pub(crate) operation_idx: i32,
+    pub(crate) initiator_xpub: String,
+    pub(crate) created_at: i64,
+    pub(crate) operation_type: OperationType,
+    pub(crate) status: OperationStatus,
+    pub(crate) acked_by: HashSet<String>,
+    pub(crate) nacked_by: HashSet<String>,
+    pub(crate) threshold: Option<u8>,
+    pub(crate) my_response: Option<bool>,
+    pub(crate) processed_at: Option<i64>,
+    pub(crate) files: Vec<FileMetadata>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Deserialize, Serialize)]
+#[sea_orm(rs_type = "u8", db_type = "TinyUnsigned")]
+pub(crate) enum OperationStatus {
+    #[sea_orm(num_value = 1)]
+    Pending = 1,
+    #[sea_orm(num_value = 2)]
+    Approved = 2,
+    #[sea_orm(num_value = 3)]
+    Discarded = 3,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Deserialize, Serialize)]
+#[sea_orm(rs_type = "u8", db_type = "TinyUnsigned")]
+pub(crate) enum OperationType {
+    #[sea_orm(num_value = 1)]
+    CreateUtxos = 1,
+    #[sea_orm(num_value = 2)]
+    Issuance = 2,
+    #[sea_orm(num_value = 3)]
+    SendRgb = 3,
+    #[sea_orm(num_value = 4)]
+    SendBtc = 4,
+    #[sea_orm(num_value = 5)]
+    Inflation = 5,
+    #[sea_orm(num_value = 6)]
+    BlindReceive = 6,
+    #[sea_orm(num_value = 7)]
+    WitnessReceive = 7,
+    #[sea_orm(num_value = 8)]
+    Burn = 8,
+}
+
+impl TryFrom<u8> for OperationType {
+    type Error = APIError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(OperationType::CreateUtxos),
+            2 => Ok(OperationType::Issuance),
+            3 => Ok(OperationType::SendRgb),
+            4 => Ok(OperationType::SendBtc),
+            5 => Ok(OperationType::Inflation),
+            6 => Ok(OperationType::BlindReceive),
+            7 => Ok(OperationType::WitnessReceive),
+            8 => Ok(OperationType::Burn),
+            _ => Err(APIError::InvalidOperationType(value)),
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+pub(crate) struct PostOperationResponse {
+    pub(crate) operation_idx: i32,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(crate) struct RespondToOperationRequest {
+    pub(crate) operation_idx: i32,
+    pub(crate) ack: bool,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(crate) struct TransferStatusInfo {
+    pub(crate) cosigner_xpub: String,
+    pub(crate) accepted: bool,
+    pub(crate) registered_at: i64,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(crate) struct TransferStatusRequest {
+    pub(crate) batch_transfer_idx: i32,
+    pub(crate) accept: Option<bool>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(crate) struct TransferStatusResponse {
+    pub(crate) status: Option<TransferStatusInfo>,
+}
+
+#[derive(Debug, PartialEq, Eq, Deserialize, Serialize)]
+pub(crate) enum UserRole {
+    Cosigner(String),
+    WatchOnly,
+}
+
 impl AppState {
     pub(crate) async fn get_operation_by_idx_with_files(
         &self,
@@ -130,162 +304,6 @@ impl AppState {
             files,
         }))
     }
-}
-
-#[derive(Deserialize, Serialize)]
-pub(crate) struct BumpAddressIndicesRequest {
-    pub(crate) count: u8,
-    pub(crate) internal: bool,
-}
-
-#[derive(Deserialize, Serialize)]
-pub(crate) struct BumpAddressIndicesResponse {
-    pub(crate) first: u32,
-}
-
-#[derive(Deserialize, Serialize)]
-pub(crate) struct EmptyResponse {}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct FileMetadata {
-    pub(crate) file_id: String,
-    pub(crate) r#type: FileType,
-    pub(crate) posted_by_xpub: String,
-    pub(crate) size_bytes: u64,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Deserialize, Serialize)]
-#[sea_orm(rs_type = "u8", db_type = "TinyUnsigned")]
-pub(crate) enum FileType {
-    #[sea_orm(num_value = 1)]
-    Consignment = 1,
-    #[sea_orm(num_value = 2)]
-    Media = 2,
-    #[sea_orm(num_value = 3)]
-    OperationData = 3,
-    #[sea_orm(num_value = 4)]
-    OperationPsbt = 4,
-    #[sea_orm(num_value = 5)]
-    ResponsePsbt = 5,
-    #[sea_orm(num_value = 6)]
-    Fascia = 6,
-}
-
-#[derive(Deserialize, Serialize)]
-pub(crate) struct GetCurrentAddressIndicesResponse {
-    pub(crate) internal: Option<u32>,
-    pub(crate) external: Option<u32>,
-}
-
-#[derive(Deserialize, Serialize)]
-pub(crate) struct GetFileRequest {
-    pub(crate) file_id: String,
-}
-
-#[derive(Deserialize, Serialize)]
-pub(crate) struct GetLastProcessedOpIdxResponse {
-    pub(crate) operation_idx: i32,
-}
-
-#[derive(Deserialize, Serialize)]
-pub(crate) struct GetOperationByIdxRequest {
-    pub(crate) operation_idx: i32,
-}
-
-#[derive(Debug, PartialEq, Eq, Deserialize, Serialize)]
-pub(crate) enum UserRole {
-    Cosigner(String),
-    WatchOnly,
-}
-
-#[derive(Deserialize, Serialize)]
-pub(crate) struct InfoResponse {
-    pub(crate) min_rgb_lib_version: String,
-    pub(crate) max_rgb_lib_version: String,
-    pub(crate) rgb_lib_version: String,
-    pub(crate) last_operation_idx: Option<i32>,
-    pub(crate) user_role: UserRole,
-}
-
-#[derive(Deserialize, Serialize)]
-pub(crate) struct MarkOperationProcessedRequest {
-    pub(crate) operation_idx: i32,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct OperationResponse {
-    pub(crate) operation_idx: i32,
-    pub(crate) initiator_xpub: String,
-    pub(crate) created_at: i64,
-    pub(crate) operation_type: OperationType,
-    pub(crate) status: OperationStatus,
-    pub(crate) acked_by: HashSet<String>,
-    pub(crate) nacked_by: HashSet<String>,
-    pub(crate) threshold: Option<u8>,
-    pub(crate) my_response: Option<bool>,
-    pub(crate) processed_at: Option<i64>,
-    pub(crate) files: Vec<FileMetadata>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Deserialize, Serialize)]
-#[sea_orm(rs_type = "u8", db_type = "TinyUnsigned")]
-pub(crate) enum OperationStatus {
-    #[sea_orm(num_value = 1)]
-    Pending = 1,
-    #[sea_orm(num_value = 2)]
-    Approved = 2,
-    #[sea_orm(num_value = 3)]
-    Discarded = 3,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Deserialize, Serialize)]
-#[sea_orm(rs_type = "u8", db_type = "TinyUnsigned")]
-pub(crate) enum OperationType {
-    #[sea_orm(num_value = 1)]
-    CreateUtxos = 1,
-    #[sea_orm(num_value = 2)]
-    Issuance = 2,
-    #[sea_orm(num_value = 3)]
-    SendRgb = 3,
-    #[sea_orm(num_value = 4)]
-    SendBtc = 4,
-    #[sea_orm(num_value = 5)]
-    Inflation = 5,
-    #[sea_orm(num_value = 6)]
-    BlindReceive = 6,
-    #[sea_orm(num_value = 7)]
-    WitnessReceive = 7,
-    #[sea_orm(num_value = 8)]
-    Burn = 8,
-}
-
-impl TryFrom<u8> for OperationType {
-    type Error = APIError;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            1 => Ok(OperationType::CreateUtxos),
-            2 => Ok(OperationType::Issuance),
-            3 => Ok(OperationType::SendRgb),
-            4 => Ok(OperationType::SendBtc),
-            5 => Ok(OperationType::Inflation),
-            6 => Ok(OperationType::BlindReceive),
-            7 => Ok(OperationType::WitnessReceive),
-            8 => Ok(OperationType::Burn),
-            _ => Err(APIError::InvalidOperationType(value)),
-        }
-    }
-}
-
-#[derive(Deserialize, Serialize)]
-pub(crate) struct PostOperationResponse {
-    pub(crate) operation_idx: i32,
-}
-
-#[derive(Deserialize, Serialize)]
-pub(crate) struct RespondToOperationRequest {
-    pub(crate) operation_idx: i32,
-    pub(crate) ack: bool,
 }
 
 pub(crate) async fn bump_address_indices(
@@ -833,24 +851,6 @@ pub(crate) async fn respond_to_operation(
         Ok(Json(operation_response))
     })
     .await
-}
-
-#[derive(Deserialize, Serialize)]
-pub(crate) struct TransferStatusRequest {
-    pub(crate) batch_transfer_idx: i32,
-    pub(crate) accept: Option<bool>,
-}
-
-#[derive(Deserialize, Serialize)]
-pub(crate) struct TransferStatusInfo {
-    pub(crate) cosigner_xpub: String,
-    pub(crate) accepted: bool,
-    pub(crate) registered_at: i64,
-}
-
-#[derive(Deserialize, Serialize)]
-pub(crate) struct TransferStatusResponse {
-    pub(crate) status: Option<TransferStatusInfo>,
 }
 
 pub(crate) async fn transfer_status(
